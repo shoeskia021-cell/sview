@@ -262,7 +262,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [build-ffmpeg, build-freetype, build-openal, build-libconfig]
     steps:
-        - name: Clone Tree
+    - name: Clone Tree
       uses: actions/checkout@v6
       with:
         path: sview.git
