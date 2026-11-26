@@ -116,9 +116,12 @@ StFTFontRegistry::StFTFontRegistry() {
     // Japanese
     //myFilesMinor.push_back(stCString("NotoSansJP-Regular.otf"));
 
-    // Arabic
+        // Arabic
+    myFilesMinor.push_back(stCString("NotoSansArabic-Regular.ttf"));
     myFilesMinor.push_back(stCString("NotoNaskhArabic-Regular.ttf"));
-    //myFilesMinor.push_back(stCString("NotoNaskhArabic-Bold.ttf"));
+    myFilesMinor.push_back(stCString("NotoNaskhArabicUI-Regular.ttf"));
+    myFilesMinor.push_back(stCString("DroidNaskh-Regular.ttf"));
+
 #else
 
 #if !defined(__EMSCRIPTEN__)
@@ -400,13 +403,19 @@ void StFTFontRegistry::init(const bool theToSearchAll) {
         aMono .Korean = aSerif.CJK;
     }
 
-    aSerif.Arabic = findFont(stCString("Droid Arabic Naskh"));
-    aSans .Arabic = aSerif.Arabic;
-    aMono .Arabic = aSerif.Arabic;
+        aSerif.Arabic = findFont(stCString("Noto Sans Arabic"));
     if(aSerif.Arabic.FamilyName.isEmpty()) {
         aSerif.Arabic = findFont(stCString("Noto Naskh Arabic"));
-        aSans .Arabic = aSerif.Arabic;
-        aMono .Arabic = aSerif.Arabic;
+    }
+    if(aSerif.Arabic.FamilyName.isEmpty()) {
+        aSerif.Arabic = findFont(stCString("Noto Naskh Arabic UI"));
+    }
+    if(aSerif.Arabic.FamilyName.isEmpty()) {
+        aSerif.Arabic = findFont(stCString("Droid Arabic Naskh"));
+    }
+    aSans .Arabic = aSerif.Arabic;
+    aMono .Arabic = aSerif.Arabic;
+
     }
 #else
     aSerif.Western = findFont(stCString("FreeSerif"));
