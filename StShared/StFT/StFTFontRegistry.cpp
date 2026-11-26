@@ -26,9 +26,9 @@ StFTFontRegistry::StFTFontRegistry() {
     myExtensions.push_back("ttc");
     myExtensions.push_back("otf");
 
-    const StString aCustFontDir = StProcess::getStShareFolder() + "fonts" + SYS_FS_SPLITTER;
-    if(StFolder::isFolder(aCustFontDir)) {
-        myFolders.push_back(aCustFontDir);
+        const StString aShareDir = StProcess::getStShareFolder();
+    if(StFolder::isFolder(aShareDir)) {
+        myFolders.push_back(aShareDir);
     }
 #ifdef _WIN32
     myFolders.push_back(StProcess::getWindowsFolder() + "fonts");
@@ -116,7 +116,8 @@ StFTFontRegistry::StFTFontRegistry() {
     // Japanese
     //myFilesMinor.push_back(stCString("NotoSansJP-Regular.otf"));
 
-        // Arabic
+                // Arabic / Persian
+    myFilesMajor.push_back(stCString("persian.ttf"));
     myFilesMinor.push_back(stCString("NotoSansArabic-Regular.ttf"));
     myFilesMinor.push_back(stCString("NotoNaskhArabic-Regular.ttf"));
     myFilesMinor.push_back(stCString("NotoNaskhArabicUI-Regular.ttf"));
@@ -403,7 +404,10 @@ void StFTFontRegistry::init(const bool theToSearchAll) {
         aMono .Korean = aSerif.CJK;
     }
 
+            aSerif.Arabic = findFont(stCString("Vazirmatn"));
+    if(aSerif.Arabic.FamilyName.isEmpty()) {
         aSerif.Arabic = findFont(stCString("Noto Sans Arabic"));
+    }
     if(aSerif.Arabic.FamilyName.isEmpty()) {
         aSerif.Arabic = findFont(stCString("Noto Naskh Arabic"));
     }
