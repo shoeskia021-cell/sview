@@ -265,3 +265,74 @@ jobs:
     - name: Clone Tree
       uses: actions/checkout@v6
       with:
+        path: sview.git
+        fetch-depth: 1
+    - name: Clone Android build tools
+      uses: actions/checkout@v6
+      with:
+        repository: gkv311/sview-deps-android.git
+        ref: 'master'
+        path: sview-deps-android.git
+        fetch-depth: 1
+    - name: Unpack Android build tools
+      run: |
+        tar xf "$PWD/sview-deps-android.git/$ANDROID_PLATFORM.tar.bz2"    -C "$PWD/"
+        tar xf "$PWD/sview-deps-android.git/$ANDROID_BUILD_TOOLS.tar.bz2" -C "$PWD/"
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++ cmake ninja-build
+    - name: Download libconfig build
+      uses: actions/download-artifact@v8
+      with:
+        name: libconfig-${{ env.SYSTEM }}-${{ env.ARCH }}
+        path: libconfig-install
+    - name: Download FreeType build
+      uses: actions/download-artifact@v8
+      with:
+        name: freetype-${{ env.SYSTEM }}-${{ env.ARCH }}
+        path: freetype-install
+    - name: Download OpenAL soft build
+      uses: actions/download-artifact@v8
+      with:
+        name: openal-${{ env.SYSTEM }}-${{ env.ARCH }}
+        path: openal-install
+    - name: Download FFmpeg build
+      uses: actions/download-artifact@v8
+      with:
+        name: ffmpeg-${{ env.SYSTEM }}-${{ env.ARCH }}
+        path: ffmpeg-install
+    - name: Configure project
+      env:
+        SVIEW_CONFIG: |
+          set(USE_OPENVR   OFF CACHE BOOL "")
+          set(USE_MONGOOSE OFF CACHE BOOL "")
+          set(USE_UPDATER  OFF CACHE BOOL "")
+          set(USE_STCONFIG OFF CACHE BOOL "")
+          set(BUILD_TREAT_WARNINGS_AS_ERRORS OFF CACHE BOOL "")
+          ${{ env.TOOLCHAIN_TEXT }}
+          set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/sview-install"     CACHE PATH "")
+          set(LIBCONFIGCPP_DIR     "${CMAKE_CURRENT_LIST_DIR}/libconfig-install" CACHE PATH "")
+          set(FREETYPE_DIR         "${CMAKE_CURRENT_LIST_DIR}/freetype-install"  CACHE PATH "")
+          set(FFMPEG_DIR           "${CMAKE_CURRENT_LIST_DIR}/ffmpeg-install"    CACHE PATH "")
+          set(OPENAL_DIR           "${CMAKE_CURRENT_LIST_DIR}/openal-install"    CACHE PATH "")
+          set(ANDROID_PLATFORM     "${CMAKE_CURRENT_LIST_DIR}/${{ env.ANDROID_PLATFORM }}"    CACHE PATH "")
+          set(ANDROID_BUILD_TOOLS  "${CMAKE_CURRENT_LIST_DIR}/${{ env.ANDROID_BUILD_TOOLS }}" CACHE PATH "")
+      run: |
+        export PKG_CONFIG_LIBDIR=
+        export PKG_CONFIG_PATH=$PWD/ffmpeg-install/lib/pkgconfig:$PWD/freetype-install/lib/pkgconfig:$PWD/libconfig-install/lib/pkgconfig
+        echo "${SVIEW_CONFIG}" | tee ./sview-make.cmake
+        cmake -S ./sview.git -B ./sview-make -G Ninja --toolchain "$PWD/sview-make.cmake"
+    - name: Generate debug key
+      run: |
+        cmake --build ./sview-make --target sView_keystore_debug
+    - name: Build project
+      run: |
+        cmake --build ./sview-make
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v6
+      with:
+        name: sview-${{ env.SYSTEM }}-${{ env.ARCH }}
+        path: sview-make/sView-Release.apk
+        if-no-files-found: error
+        compression-level: 0
