@@ -1,32 +1,90 @@
 name: Build (Android)
 on:
   workflow_call:
+  workflow_dispatch:
 
 env:
-  ARCH: 'arm64'
+  ARCH: 'arm'
   SYSTEM: 'android'
   TOOLCHAIN_TEXT: |
     set(CMAKE_SYSTEM_NAME      "Android")
     set(CMAKE_SYSTEM_VERSION   "21")
     set(CMAKE_ANDROID_NDK      "$ENV{ANDROID_NDK}")
-    set(CMAKE_ANDROID_ARCH_ABI "arm64-v8a")
+    set(CMAKE_ANDROID_ARCH_ABI "armeabi-v7a")
     set(CMAKE_ANDROID_STL_TYPE "c++_shared")
     set(CMAKE_BUILD_TYPE "Release")
-    # workaround for libconfig
     set(CMAKE_C_FLAGS          "-fPIC")
     set(CMAKE_CXX_FLAGS        "-fPIC")
   ANDROID_PLATFORM:    'android-26.jar'
   ANDROID_BUILD_TOOLS: 'android-build-tools-26.0.3'
   FREETYPE_REF: 'VER-2-14-3'
-  # latest tag fails building with CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND
-  #OPENAL_REF:   '1.25.2'
   OPENAL_REF:   '1.24.2'
-  OPENVR_REF:   'v2.5.1'
-  #LIBCONFIG_REF: 'v1.8.2' untested
   LIBCONFIG_REF: 'v1.7.3'
+  FFMPEG_REF:   'n7.1.1'
   CACHE_REV:    'cache3'
 
 jobs:
+  build-ffmpeg:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/cache@v5
+      id: cache
+      with:
+        path: ffmpeg-install
+        key: ffmpeg-${{ env.SYSTEM }}-${{ env.ARCH }}-${{ env.FFMPEG_REF }}-${{ env.CACHE_REV }}
+    - name: Clone FFmpeg
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@v6
+      with:
+        path: ffmpeg.git
+        repository: FFmpeg/FFmpeg
+        ref: ${{ env.FFMPEG_REF }}
+        fetch-depth: 1
+    - name: Install Dependencies
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nasm yasm pkg-config make
+    - name: Configure and Build FFmpeg (32-bit armv7a)
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        TOOLCHAIN="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64"
+        API=21
+        TARGET=armv7a-linux-androideabi
+        mkdir -p ffmpeg-build ffmpeg-install
+        cd ffmpeg-build
+        ../ffmpeg.git/configure \
+          --prefix="$GITHUB_WORKSPACE/ffmpeg-install" \
+          --enable-cross-compile \
+          --target-os=android \
+          --arch=arm \
+          --cpu=armv7-a \
+          --cc="$TOOLCHAIN/bin/${TARGET}${API}-clang" \
+          --cxx="$TOOLCHAIN/bin/${TARGET}${API}-clang++" \
+          --ar="$TOOLCHAIN/bin/llvm-ar" \
+          --nm="$TOOLCHAIN/bin/llvm-nm" \
+          --ranlib="$TOOLCHAIN/bin/llvm-ranlib" \
+          --strip="$TOOLCHAIN/bin/llvm-strip" \
+          --sysroot="$TOOLCHAIN/sysroot" \
+          --extra-cflags="-march=armv7-a -mfloat-abi=softfp -mfpu=neon -fPIC" \
+          --extra-ldflags="-march=armv7-a -Wl,--fix-cortex-a8" \
+          --enable-shared \
+          --disable-static \
+          --disable-doc \
+          --disable-programs \
+          --disable-avdevice \
+          --disable-symver \
+          --enable-neon
+        make -j$(nproc)
+        make install
+    - name: Upload FFmpeg build
+      uses: actions/upload-artifact@v6
+      with:
+        name: ffmpeg-${{ env.SYSTEM }}-${{ env.ARCH }}
+        path: ffmpeg-install
+        if-no-files-found: error
+        retention-days: 1
+
   build-freetype:
     runs-on: ubuntu-24.04
     steps:
@@ -47,8 +105,7 @@ jobs:
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          cmake ninja-build
+        sudo apt-get install -y cmake ninja-build
     - name: Configure project
       if: steps.cache.outputs.cache-hit != 'true'
       env:
@@ -67,7 +124,6 @@ jobs:
           ${{ env.TOOLCHAIN_TEXT }}
           set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/freetype-install" CACHE PATH "")
       run: |
-        echo "ANDROID_NDK=$ANDROID_NDK"
         echo "${FREETYPE_CONFIG}" | tee ./freetype-make.cmake
         cmake -S ./freetype.git -B ./freetype-make -G Ninja --toolchain "$PWD/freetype-make.cmake"
     - name: Build project
@@ -110,8 +166,7 @@ jobs:
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          cmake ninja-build
+        sudo apt-get install -y cmake ninja-build
     - name: Configure project
       if: steps.cache.outputs.cache-hit != 'true'
       env:
@@ -122,7 +177,6 @@ jobs:
           ${{ env.TOOLCHAIN_TEXT }}
           set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/libconfig-install" CACHE PATH "")
       run: |
-        echo "ANDROID_NDK=$ANDROID_NDK"
         echo "${LIBCONFIG_CONFIG}" | tee ./libconfig-make.cmake
         cmake -S ./libconfig.git -B ./libconfig-make -G Ninja --toolchain "$PWD/libconfig-make.cmake"
     - name: Build project
@@ -162,10 +216,7 @@ jobs:
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          cmake ninja-build
-        #sudo apt-get install -y \
-        #  ninja-build
+        sudo apt-get install -y cmake ninja-build
     - name: Configure project
       if: steps.cache.outputs.cache-hit != 'true'
       env:
@@ -176,7 +227,6 @@ jobs:
           set(ALSOFT_EXAMPLES       OFF CACHE BOOL "")
           set(ALSOFT_TESTS          OFF CACHE BOOL "")
           set(ALSOFT_BUILD_ROUTER   OFF CACHE BOOL "")
-          # enable OpenSL backend for Android
           set(ALSOFT_REQUIRE_WINMM     OFF CACHE BOOL "")
           set(ALSOFT_REQUIRE_DSOUND    OFF CACHE BOOL "")
           set(ALSOFT_REQUIRE_WASAPI    OFF CACHE BOOL "")
@@ -189,8 +239,6 @@ jobs:
           ${{ env.TOOLCHAIN_TEXT }}
           set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/openal-install" CACHE PATH "")
       run: |
-        echo "ANDROID_NDK=$ANDROID_NDK"
-        cmake --version
         echo "${OPENAL_CONFIG}" | tee ./openal-make.cmake
         cmake -S ./openal.git -B ./openal-make -G Ninja --toolchain "$PWD/openal-make.cmake"
     - name: Build project
@@ -212,81 +260,8 @@ jobs:
 
   build-sview:
     runs-on: ubuntu-24.04
-    needs: [build-freetype, build-openal, build-libconfig]
+    needs: [build-ffmpeg, build-freetype, build-openal, build-libconfig]
     steps:
     - name: Clone Tree
       uses: actions/checkout@v6
       with:
-        path: sview.git
-        fetch-depth: 1
-    - name: Clone Android build tools
-      uses: actions/checkout@v6
-      with:
-        repository: gkv311/sview-deps-android.git
-        ref: 'master'
-        path: sview-deps-android.git
-        fetch-depth: 1
-    - name: Unpack Android build tools
-      run: |
-        tar xf "$PWD/sview-deps-android.git/$ANDROID_PLATFORM.tar.bz2"    -C "$PWD/"
-        tar xf "$PWD/sview-deps-android.git/$ANDROID_BUILD_TOOLS.tar.bz2" -C "$PWD/"
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          g++ cmake ninja-build
-    - name: Download libconfig build
-      uses: actions/download-artifact@v8
-      with:
-        name: libconfig-${{ env.SYSTEM }}-${{ env.ARCH }}
-        path: libconfig-install
-    - name: Download FreeType build
-      uses: actions/download-artifact@v8
-      with:
-        name: freetype-${{ env.SYSTEM }}-${{ env.ARCH }}
-        path: freetype-install
-    - name: Download OpenAL soft build
-      uses: actions/download-artifact@v8
-      with:
-        name: openal-${{ env.SYSTEM }}-${{ env.ARCH }}
-        path: openal-install
-    - name: Download FFmpeg build
-      uses: actions/download-artifact@v8
-      with:
-        name: ffmpeg-${{ env.SYSTEM }}-${{ env.ARCH }}
-        path: ffmpeg-install
-    - name: Configure project
-      env:
-        SVIEW_CONFIG: |
-          set(USE_OPENVR   OFF CACHE BOOL "")
-          set(USE_MONGOOSE OFF CACHE BOOL "")
-          set(USE_UPDATER  OFF CACHE BOOL "")
-          set(USE_STCONFIG OFF CACHE BOOL "")
-          set(BUILD_TREAT_WARNINGS_AS_ERRORS ON CACHE BOOL "")
-          ${{ env.TOOLCHAIN_TEXT }}
-          set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/sview-install"     CACHE PATH "")
-          set(LIBCONFIGCPP_DIR     "${CMAKE_CURRENT_LIST_DIR}/libconfig-install" CACHE PATH "")
-          set(FREETYPE_DIR         "${CMAKE_CURRENT_LIST_DIR}/freetype-install"  CACHE PATH "")
-          set(FFMPEG_DIR           "${CMAKE_CURRENT_LIST_DIR}/ffmpeg-install"    CACHE PATH "")
-          set(OPENAL_DIR           "${CMAKE_CURRENT_LIST_DIR}/openal-install"    CACHE PATH "")
-          set(ANDROID_PLATFORM     "${CMAKE_CURRENT_LIST_DIR}/${{ env.ANDROID_PLATFORM }}"    CACHE PATH "")
-          set(ANDROID_BUILD_TOOLS  "${CMAKE_CURRENT_LIST_DIR}/${{ env.ANDROID_BUILD_TOOLS }}" CACHE PATH "")
-      run: |
-        echo "ANDROID_NDK=$ANDROID_NDK"
-        export PKG_CONFIG_LIBDIR=
-        export PKG_CONFIG_PATH=/usr/${TOOLCHAIN_PREFIX}/lib/pkgconfig:$PWD/ffmpeg-install/lib/pkgconfig:$PWD/freetype-install/lib/pkgconfig:$PWD/libconfig-install/lib/pkgconfig
-        echo "${SVIEW_CONFIG}" | tee ./sview-make.cmake
-        cmake -S ./sview.git -B ./sview-make -G Ninja --toolchain "$PWD/sview-make.cmake"
-    - name: Generate debug key
-      run: |
-        cmake --build ./sview-make --target sView_keystore_debug
-    - name: Build project
-      run: |
-        cmake --build ./sview-make
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v6
-      with:
-        name: sview-${{ env.SYSTEM }}-${{ env.ARCH }}
-        path: sview-make/sView-Release.apk
-        if-no-files-found: error
-        compression-level: 0
