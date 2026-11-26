@@ -416,7 +416,7 @@ void StFTFontRegistry::init(const bool theToSearchAll) {
     aSans .Arabic = aSerif.Arabic;
     aMono .Arabic = aSerif.Arabic;
 
-    }
+    
 #else
     aSerif.Western = findFont(stCString("FreeSerif"));
     aSans .Western = findFont(stCString("FreeSans"));
