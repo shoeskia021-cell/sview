@@ -265,7 +265,7 @@ jobs:
     - name: Clone Tree
       uses: actions/checkout@v6
       with:
-        path: sview.git
+                path: sview.git
         fetch-depth: 1
     - name: Clone Android build tools
       uses: actions/checkout@v6
