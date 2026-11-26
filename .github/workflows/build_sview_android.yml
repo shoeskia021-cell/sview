@@ -262,10 +262,10 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [build-ffmpeg, build-freetype, build-openal, build-libconfig]
     steps:
-    - name: Clone Tree
+        - name: Clone Tree
       uses: actions/checkout@v6
       with:
-                path: sview.git
+        path: sview.git
         fetch-depth: 1
     - name: Clone Android build tools
       uses: actions/checkout@v6
@@ -274,6 +274,7 @@ jobs:
         ref: 'master'
         path: sview-deps-android.git
         fetch-depth: 1
+
     - name: Unpack Android build tools
       run: |
         tar xf "$PWD/sview-deps-android.git/$ANDROID_PLATFORM.tar.bz2"    -C "$PWD/"
