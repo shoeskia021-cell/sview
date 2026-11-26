@@ -277,9 +277,24 @@ void StGLSubtitles::stglUpdate(const StPointD_t& ,
         stglResize();
     }
 
-    StGLContext& aCtx = getContext();
+        StGLContext& aCtx = getContext();
     if(isChanged) {
-        setText(myShowItems.Text);
+        StString aFixedText;
+        StString aLine;
+        for (StUtf8Iter anIter = myShowItems.Text.iterator(); *anIter != 0; ++anIter) {
+            const stUtf32_t aChar = *anIter;
+            if (aChar == '\n') {
+                aFixedText += StPersianReshaper::reshapeAndRTL(aLine);
+                aFixedText += '\n';
+                aLine.clear();
+            } else if (aChar != '\r') {
+                aLine += aChar;
+            }
+        }
+        if (!aLine.isEmpty()) {
+            aFixedText += StPersianReshaper::reshapeAndRTL(aLine);
+        }
+        setText(aFixedText);
 
         if(!myShowItems.Image.isNull()) {
             myTexture.init(aCtx, myShowItems.Image);
