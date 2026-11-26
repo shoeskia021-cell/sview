@@ -11,6 +11,7 @@
 #include <StGL/StGLProgram.h>
 #include <StGLWidgets/StGLImageRegion.h>
 #include <StGLWidgets/StGLRootWidget.h>
+#include "StPersianReshaper.h"
 
 namespace {
     static const size_t SHARE_IMAGE_PROGRAM_ID = StGLRootWidget::generateShareId();
